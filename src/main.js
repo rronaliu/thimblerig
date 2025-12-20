@@ -1,4 +1,12 @@
-import { Application, Container, Graphics, Text, Rectangle } from "pixi.js";
+import {
+  Application,
+  Container,
+  Graphics,
+  Text,
+  Rectangle,
+  Assets,
+  TilingSprite
+} from "pixi.js";
 
 // Game constants
 const GAME_WIDTH = 800;
@@ -85,9 +93,24 @@ function createBall() {
   return ballGraphic;
 }
 
+function addBackgroundTexture(texture, tableContainer) {
+  // Use TilingSprite to repeat the 128x128 image across the 800x600 area
+  const background = new TilingSprite({
+    texture: texture,
+    width: GAME_WIDTH,
+    height: GAME_HEIGHT
+  });
+
+  tableContainer.addChild(background);
+  return tableContainer;
+}
+
 // Create a cup graphic
-function createCup(index) {
+function createCup(index, texture) {
   const cupContainer = new Container();
+  if (texture) {
+    return createCupWithTexture(index, texture, cupContainer);
+  }
 
   // Cup body (trapezoid shape using graphics)
   const cup = new Graphics();
@@ -98,10 +121,14 @@ function createCup(index) {
 
   // Main cup body - trapezoid
   const cupPath = [
-    -CUP_WIDTH * 0.35, 0,
-    CUP_WIDTH * 0.35, 0,
-    CUP_WIDTH * 0.5, CUP_HEIGHT - 15,
-    -CUP_WIDTH * 0.5, CUP_HEIGHT - 15
+    -CUP_WIDTH * 0.35,
+    0,
+    CUP_WIDTH * 0.35,
+    0,
+    CUP_WIDTH * 0.5,
+    CUP_HEIGHT - 15,
+    -CUP_WIDTH * 0.5,
+    CUP_HEIGHT - 15
   ];
   cup.poly(cupPath);
   cup.fill({ color: 0x8b4513 });
@@ -122,31 +149,31 @@ function createCup(index) {
 
   // Left highlight
   const highlightPath = [
-    -CUP_WIDTH * 0.35, 0,
-    -CUP_WIDTH * 0.25, 0,
-    -CUP_WIDTH * 0.4, CUP_HEIGHT - 15,
-    -CUP_WIDTH * 0.5, CUP_HEIGHT - 15
+    -CUP_WIDTH * 0.35,
+    0,
+    -CUP_WIDTH * 0.25,
+    0,
+    -CUP_WIDTH * 0.4,
+    CUP_HEIGHT - 15,
+    -CUP_WIDTH * 0.5,
+    CUP_HEIGHT - 15
   ];
   cup.poly(highlightPath);
   cup.fill({ color: 0xa0522d, alpha: 0.5 });
 
   // Right shadow
   const shadowPath = [
-    CUP_WIDTH * 0.25, 0,
-    CUP_WIDTH * 0.35, 0,
-    CUP_WIDTH * 0.5, CUP_HEIGHT - 15,
-    CUP_WIDTH * 0.4, CUP_HEIGHT - 15
+    CUP_WIDTH * 0.25,
+    0,
+    CUP_WIDTH * 0.35,
+    0,
+    CUP_WIDTH * 0.5,
+    CUP_HEIGHT - 15,
+    CUP_WIDTH * 0.4,
+    CUP_HEIGHT - 15
   ];
   cup.poly(shadowPath);
   cup.fill({ color: 0x5c3317, alpha: 0.5 });
-
-  // Decorative rings
-  for (let i = 1; i <= 2; i++) {
-    const ringY = CUP_HEIGHT * (i * 0.25);
-    const ringWidth = CUP_WIDTH * (0.35 + (i * 0.25) * 0.4);
-    cup.ellipse(0, ringY, ringWidth, 6);
-    cup.stroke({ color: 0x654321, width: 3 });
-  }
 
   cupContainer.addChild(cup);
 
@@ -281,10 +308,14 @@ function createAfterimage(cup) {
 
   // Simplified cup shape for afterimage (matching rounded bottom)
   const cupPath = [
-    -CUP_WIDTH * 0.35, 0,
-    CUP_WIDTH * 0.35, 0,
-    CUP_WIDTH * 0.5, CUP_HEIGHT - 15,
-    -CUP_WIDTH * 0.5, CUP_HEIGHT - 15
+    -CUP_WIDTH * 0.35,
+    0,
+    CUP_WIDTH * 0.35,
+    0,
+    CUP_WIDTH * 0.5,
+    CUP_HEIGHT - 15,
+    -CUP_WIDTH * 0.5,
+    CUP_HEIGHT - 15
   ];
   ghost.poly(cupPath);
   ghost.fill({ color: 0x8b4513, alpha: 0.3 });
@@ -304,7 +335,7 @@ function createAfterimage(cup) {
 
   // Fade out and remove
   let alpha = 0.4;
-  const fade = (delta) => {
+  const fade = delta => {
     alpha -= delta.deltaTime * 0.08;
     ghost.alpha = alpha;
     if (alpha <= 0) {
@@ -504,6 +535,14 @@ function resize() {
 async function init() {
   // Create the PixiJS application
   app = new Application();
+  let wallTexture;
+  try {
+    // Rename your file to bucket_wood.png first!
+    wallTexture = await Assets.load("assets/Bricks/Bricks_18-128x128.png");
+    console.log("Texture loaded successfully!");
+  } catch (error) {
+    console.error("Texture failed to load, falling back to graphics:", error);
+  }
   await app.init({
     width: GAME_WIDTH,
     height: GAME_HEIGHT,
@@ -523,18 +562,26 @@ async function init() {
   window.addEventListener("resize", resize);
   resize();
 
-  // Create felt table texture pattern
+  // Create a container specifically for the background
+  const tableContainer = new Container();
+  app.stage.addChild(tableContainer);
+
+  // Correct order: (texture, container)
+  if (wallTexture) {
+    addBackgroundTexture(wallTexture, tableContainer);
+  }
+
+  // Draw your green felt and borders on top of or instead of the texture
   const tableGraphics = new Graphics();
   tableGraphics.rect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-  tableGraphics.fill({ color: 0x2d5a27 });
+  // If you want to see the bricks, use a low alpha here or skip the fill
+  tableGraphics.fill({ color: 0x7a7a7a, alpha: 0.5 });
 
   // Add subtle table border
-  tableGraphics.rect(10, 10, GAME_WIDTH - 20, GAME_HEIGHT - 20);
-  tableGraphics.stroke({ color: 0x1e3d1a, width: 8 });
-  tableGraphics.rect(20, 20, GAME_WIDTH - 40, GAME_HEIGHT - 40);
-  tableGraphics.stroke({ color: 0x3d7a37, width: 2 });
+  tableGraphics.rect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+  tableGraphics.stroke({ color: 0x7a7a7a, width: 8 });
 
-  app.stage.addChild(tableGraphics);
+  tableContainer.addChild(tableGraphics);
 
   // Create containers for game elements
   gameContainer = new Container();
