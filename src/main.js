@@ -9,8 +9,8 @@ const CUP_HEIGHT = 160;
 const CUP_SPACING = 200;
 const CUP_Y = 380;
 const BALL_RADIUS = 25;
-const SHUFFLE_SPEED = 300; // ms per swap
-const SHUFFLE_COUNT = 8;
+const SHUFFLE_SPEED = 180; // ms per swap (faster!)
+const SHUFFLE_COUNT = 10;
 
 // Game state
 let ballPosition = 0;
@@ -27,6 +27,7 @@ let ball;
 let ui;
 let gameContainer;
 let cupsContainer;
+let afterimages = []; // For motion blur effect
 
 // Easing function
 function easeInOutQuad(t) {
@@ -95,19 +96,23 @@ function createCup(index) {
   cup.ellipse(0, CUP_HEIGHT - 10, CUP_WIDTH * 0.5 + 5, 20);
   cup.fill({ color: 0x000000, alpha: 0.3 });
 
-  // Main cup body - darker base color
+  // Main cup body - trapezoid
   const cupPath = [
-    -CUP_WIDTH * 0.35,
-    0, // top left
-    CUP_WIDTH * 0.35,
-    0, // top right
-    CUP_WIDTH * 0.5,
-    CUP_HEIGHT, // bottom right
-    -CUP_WIDTH * 0.5,
-    CUP_HEIGHT // bottom left
+    -CUP_WIDTH * 0.35, 0,
+    CUP_WIDTH * 0.35, 0,
+    CUP_WIDTH * 0.5, CUP_HEIGHT - 15,
+    -CUP_WIDTH * 0.5, CUP_HEIGHT - 15
   ];
   cup.poly(cupPath);
   cup.fill({ color: 0x8b4513 });
+
+  // Bottom rounded rim (ellipse)
+  cup.ellipse(0, CUP_HEIGHT - 15, CUP_WIDTH * 0.5, 15);
+  cup.fill({ color: 0x8b4513 });
+
+  // Bottom rim edge highlight
+  cup.ellipse(0, CUP_HEIGHT - 15, CUP_WIDTH * 0.5, 15);
+  cup.stroke({ color: 0x654321, width: 2 });
 
   // Cup rim (ellipse at top)
   cup.ellipse(0, 0, CUP_WIDTH * 0.35, 12);
@@ -117,36 +122,28 @@ function createCup(index) {
 
   // Left highlight
   const highlightPath = [
-    -CUP_WIDTH * 0.35,
-    0,
-    -CUP_WIDTH * 0.25,
-    0,
-    -CUP_WIDTH * 0.35,
-    CUP_HEIGHT,
-    -CUP_WIDTH * 0.5,
-    CUP_HEIGHT
+    -CUP_WIDTH * 0.35, 0,
+    -CUP_WIDTH * 0.25, 0,
+    -CUP_WIDTH * 0.4, CUP_HEIGHT - 15,
+    -CUP_WIDTH * 0.5, CUP_HEIGHT - 15
   ];
   cup.poly(highlightPath);
   cup.fill({ color: 0xa0522d, alpha: 0.5 });
 
   // Right shadow
   const shadowPath = [
-    CUP_WIDTH * 0.25,
-    0,
-    CUP_WIDTH * 0.35,
-    0,
-    CUP_WIDTH * 0.5,
-    CUP_HEIGHT,
-    CUP_WIDTH * 0.35,
-    CUP_HEIGHT
+    CUP_WIDTH * 0.25, 0,
+    CUP_WIDTH * 0.35, 0,
+    CUP_WIDTH * 0.5, CUP_HEIGHT - 15,
+    CUP_WIDTH * 0.4, CUP_HEIGHT - 15
   ];
   cup.poly(shadowPath);
   cup.fill({ color: 0x5c3317, alpha: 0.5 });
 
   // Decorative rings
   for (let i = 1; i <= 2; i++) {
-    const ringY = CUP_HEIGHT * (i * 0.3);
-    const ringWidth = CUP_WIDTH * (0.35 + (i * 0.3 * 0.15) / 0.3);
+    const ringY = CUP_HEIGHT * (i * 0.25);
+    const ringWidth = CUP_WIDTH * (0.35 + (i * 0.25) * 0.4);
     cup.ellipse(0, ringY, ringWidth, 6);
     cup.stroke({ color: 0x654321, width: 3 });
   }
@@ -278,6 +275,49 @@ async function lowerCup(cupIndex, quick = false) {
   cup.isLifted = false;
 }
 
+// Create an afterimage of a cup
+function createAfterimage(cup) {
+  const ghost = new Graphics();
+
+  // Simplified cup shape for afterimage (matching rounded bottom)
+  const cupPath = [
+    -CUP_WIDTH * 0.35, 0,
+    CUP_WIDTH * 0.35, 0,
+    CUP_WIDTH * 0.5, CUP_HEIGHT - 15,
+    -CUP_WIDTH * 0.5, CUP_HEIGHT - 15
+  ];
+  ghost.poly(cupPath);
+  ghost.fill({ color: 0x8b4513, alpha: 0.3 });
+  // Bottom rounded rim
+  ghost.ellipse(0, CUP_HEIGHT - 15, CUP_WIDTH * 0.5, 15);
+  ghost.fill({ color: 0x8b4513, alpha: 0.3 });
+  // Top rim
+  ghost.ellipse(0, 0, CUP_WIDTH * 0.35, 12);
+  ghost.fill({ color: 0x654321, alpha: 0.3 });
+
+  ghost.x = cup.x;
+  ghost.y = cup.y;
+  ghost.pivot.set(0, CUP_HEIGHT);
+
+  cupsContainer.addChildAt(ghost, 0); // Add behind cups
+  afterimages.push(ghost);
+
+  // Fade out and remove
+  let alpha = 0.4;
+  const fade = (delta) => {
+    alpha -= delta.deltaTime * 0.08;
+    ghost.alpha = alpha;
+    if (alpha <= 0) {
+      app.ticker.remove(fade);
+      cupsContainer.removeChild(ghost);
+      ghost.destroy();
+      const idx = afterimages.indexOf(ghost);
+      if (idx > -1) afterimages.splice(idx, 1);
+    }
+  };
+  app.ticker.add(fade);
+}
+
 // Swap two cups with animation
 async function swapCups(index1, index2) {
   const cup1 = cups[index1];
@@ -288,6 +328,12 @@ async function swapCups(index1, index2) {
 
   // Move cups in an arc
   const midY = CUP_Y - 60;
+
+  // Create afterimages during animation
+  let trailInterval = setInterval(() => {
+    createAfterimage(cup1);
+    createAfterimage(cup2);
+  }, 40);
 
   // Animate both cups simultaneously
   await Promise.all([
@@ -300,6 +346,8 @@ async function swapCups(index1, index2) {
       await animate(cup2, { x: x1, y: CUP_Y }, SHUFFLE_SPEED / 2);
     })()
   ]);
+
+  clearInterval(trailInterval);
 
   // Swap in array
   cups[index1] = cup2;
