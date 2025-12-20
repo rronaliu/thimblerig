@@ -5,7 +5,8 @@ import {
   Text,
   Rectangle,
   Assets,
-  TilingSprite
+  TilingSprite,
+  Sprite
 } from "pixi.js";
 
 // Game constants
@@ -99,6 +100,18 @@ function addBackgroundTexture(texture, tableContainer) {
     texture: texture,
     width: GAME_WIDTH,
     height: GAME_HEIGHT
+  });
+
+  tableContainer.addChild(background);
+  return tableContainer;
+}
+
+function addTableTexture(texture, tableContainer) {
+  const background = new TilingSprite({
+    texture: texture,
+    width: GAME_WIDTH,
+    height: GAME_HEIGHT / 2,
+    y: GAME_HEIGHT / 2
   });
 
   tableContainer.addChild(background);
@@ -536,9 +549,11 @@ async function init() {
   // Create the PixiJS application
   app = new Application();
   let wallTexture;
+  let woodTableTexture;
   try {
     // Rename your file to bucket_wood.png first!
     wallTexture = await Assets.load("assets/Bricks/Bricks_18-128x128.png");
+    woodTableTexture = await Assets.load("assets/Wood/Wood_10-128x128.png");
     console.log("Texture loaded successfully!");
   } catch (error) {
     console.error("Texture failed to load, falling back to graphics:", error);
@@ -571,11 +586,15 @@ async function init() {
     addBackgroundTexture(wallTexture, tableContainer);
   }
 
+  if (woodTableTexture) {
+    addTableTexture(woodTableTexture, tableContainer);
+  }
+
   // Draw your green felt and borders on top of or instead of the texture
   const tableGraphics = new Graphics();
   tableGraphics.rect(0, 0, GAME_WIDTH, GAME_HEIGHT);
   // If you want to see the bricks, use a low alpha here or skip the fill
-  tableGraphics.fill({ color: 0x7a7a7a, alpha: 0.5 });
+  //   tableGraphics.fill({ color: 0x7a7a7a, alpha: 0.5 });
 
   // Add subtle table border
   tableGraphics.rect(0, 0, GAME_WIDTH, GAME_HEIGHT);
