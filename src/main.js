@@ -435,6 +435,23 @@ async function startGame() {
   updateInstructions("Click on a cup to reveal the ball!");
 }
 
+// Resize handler for responsive scaling
+function resize() {
+  const windowWidth = window.innerWidth;
+  const windowHeight = window.innerHeight;
+
+  // Calculate scale to fit screen while maintaining aspect ratio
+  const scale = Math.min(windowWidth / GAME_WIDTH, windowHeight / GAME_HEIGHT);
+
+  // Apply scaled dimensions
+  const newWidth = Math.floor(GAME_WIDTH * scale);
+  const newHeight = Math.floor(GAME_HEIGHT * scale);
+
+  app.renderer.resize(GAME_WIDTH, GAME_HEIGHT);
+  app.canvas.style.width = `${newWidth}px`;
+  app.canvas.style.height = `${newHeight}px`;
+}
+
 // Main initialization
 async function init() {
   // Create the PixiJS application
@@ -443,7 +460,9 @@ async function init() {
     width: GAME_WIDTH,
     height: GAME_HEIGHT,
     background: "#2d5a27",
-    antialias: true
+    antialias: true,
+    resolution: window.devicePixelRatio || 1,
+    autoDensity: true
   });
 
   // Expose app to PixiJS DevTools
@@ -451,6 +470,10 @@ async function init() {
 
   // Add canvas to container
   document.getElementById("game-container").appendChild(app.canvas);
+
+  // Set up responsive resizing
+  window.addEventListener("resize", resize);
+  resize();
 
   // Create felt table texture pattern
   const tableGraphics = new Graphics();
