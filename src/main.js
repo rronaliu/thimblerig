@@ -479,11 +479,6 @@ async function selectCup(cupIndex) {
   if (cupIndex === ballPosition) {
     score++;
     updateInstructions("🎉 You found it! 🎉");
-    // Flash effect for winning
-    ball.tint = 0x00ff00;
-    setTimeout(() => {
-      ball.tint = 0xffffff;
-    }, 300);
   } else {
     updateInstructions("❌ Wrong cup! The ball was here.");
     // Lift the correct cup too
