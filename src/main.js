@@ -16,8 +16,8 @@ const CUP_COUNT = 3;
 const CUP_WIDTH = 120;
 const CUP_HEIGHT = 160;
 const CUP_SPACING = 200;
-const CUP_Y = 380;
-const BALL_RADIUS = 25;
+const CUP_Y = 600;
+const BALL_RADIUS = 40;
 const SHUFFLE_SPEED = 180; // ms per swap (faster!)
 const SHUFFLE_COUNT = 10;
 
@@ -72,7 +72,21 @@ function animate(target, props, duration) {
 }
 
 // Create the ball
-function createBall() {
+function createBall(texture) {
+  if (texture) {
+    // Use texture-based ball
+    const ballSprite = new Sprite(texture);
+
+    // Scale the ball (texture is 544x459, make it fit BALL_RADIUS * 2)
+    const ballSize = BALL_RADIUS * 2;
+    ballSprite.width = ballSize;
+    ballSprite.height = ballSize;
+    ballSprite.anchor.set(0.5, 0.5); // Center anchor
+
+    return ballSprite;
+  }
+
+  // Fallback to graphics-based ball
   const ballGraphic = new Graphics();
 
   // Ball shadow
@@ -121,8 +135,43 @@ function addTableTexture(texture, tableContainer) {
 // Create a cup graphic
 function createCup(index, texture) {
   const cupContainer = new Container();
+
   if (texture) {
-    return createCupWithTexture(index, texture, cupContainer);
+    // Use texture-based cup
+    const cupSprite = new Sprite(texture);
+
+    // Scale the sprite larger (texture is 488x511, scale it to be more visible)
+    // Make it 1.5x larger than the original CUP_WIDTH/HEIGHT
+    const scaledWidth = CUP_WIDTH * 1.8;
+    const scaledHeight = CUP_HEIGHT * 1.8;
+
+    cupSprite.width = scaledWidth;
+    cupSprite.height = scaledHeight;
+    cupSprite.anchor.set(0.5, 1); // Anchor at bottom center
+    cupSprite.y = 0; // Position at container origin
+
+    cupContainer.addChild(cupSprite);
+
+    // Store cup data
+    cupContainer.cupIndex = index;
+    cupContainer.isLifted = false;
+    cupContainer.originalY = CUP_Y;
+
+    // Add glow effect at the bottom (adjusted for larger cup)
+    const glow = new Graphics();
+    glow.ellipse(0, -5, scaledWidth * 0.5, 22);
+    glow.fill({ color: 0x22ff22, alpha: 0.3 });
+    glow.ellipse(0, -7, scaledWidth * 0.42, 18);
+    glow.fill({ color: 0x44ff44, alpha: 0.4 });
+    glow.ellipse(0, -9, scaledWidth * 0.32, 14);
+    glow.fill({ color: 0x66ff66, alpha: 0.55 });
+    glow.ellipse(0, -11, scaledWidth * 0.22, 10);
+    glow.fill({ color: 0x99ff99, alpha: 0.7 });
+    glow.visible = false;
+    glow.label = "glow";
+    cupContainer.addChildAt(glow, 0);
+
+    return cupContainer;
   }
 
   // Cup body (trapezoid shape using graphics)
@@ -572,11 +621,14 @@ async function init() {
   app = new Application();
   let wallTexture;
   let woodTableTexture;
+  let cupTexture;
+  let ballTexture;
   try {
-    // Rename your file to bucket_wood.png first!
     wallTexture = await Assets.load("assets/Bricks/Bricks_18-128x128.png");
     woodTableTexture = await Assets.load("assets/Wood/Wood_10-128x128.png");
-    console.log("Texture loaded successfully!");
+    cupTexture = await Assets.load("assets/Cup/wooden-cup.png");
+    ballTexture = await Assets.load("assets/Ball/ball.png");
+    console.log("Textures loaded successfully!");
   } catch (error) {
     console.error("Texture failed to load, falling back to graphics:", error);
   }
@@ -632,7 +684,7 @@ async function init() {
   cupsContainer = new Container();
 
   for (let i = 0; i < CUP_COUNT; i++) {
-    const cup = createCup(i);
+    const cup = createCup(i, cupTexture);
     const startX =
       GAME_WIDTH / 2 - ((CUP_COUNT - 1) * CUP_SPACING) / 2 + i * CUP_SPACING;
     cup.x = startX;
@@ -643,8 +695,8 @@ async function init() {
   }
 
   // Create ball
-  ball = createBall();
-  ball.y = CUP_Y - 30; // Position higher so it's inside the cup, not at the base
+  ball = createBall(ballTexture);
+  ball.y = CUP_Y - 220; // Position higher so it's inside the cup (adjusted for CUP_Y = 600)
   ball.visible = true;
 
   // Randomly place ball under a cup initially
@@ -662,7 +714,10 @@ async function init() {
   for (const cup of cups) {
     cup.eventMode = "static";
     cup.cursor = "pointer";
-    cup.hitArea = new Rectangle(-CUP_WIDTH / 2, 0, CUP_WIDTH, CUP_HEIGHT);
+    // Adjust hitArea for the larger textured cups (1.8x scale)
+    const hitWidth = CUP_WIDTH * 1.8;
+    const hitHeight = CUP_HEIGHT * 1.8;
+    cup.hitArea = new Rectangle(-hitWidth / 2, -hitHeight, hitWidth, hitHeight);
 
     cup.on("pointerdown", () => {
       const currentIndex = cups.indexOf(cup);
