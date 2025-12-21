@@ -464,12 +464,15 @@ async function selectCup(cupIndex) {
   canSelect = false;
   isRevealing = true;
 
-  // Lift selected cup
-  await liftCup(cupIndex);
-
-  // Show ball and update position
+  // Show ball at its actual position before lifting cup
   ball.x = cups[ballPosition].x;
   ball.visible = true;
+
+  // Small delay to let the ball appear before cup lifts
+  await new Promise(r => setTimeout(r, 50));
+
+  // Lift selected cup
+  await liftCup(cupIndex);
 
   gamesPlayed++;
 
@@ -518,8 +521,13 @@ async function startGame() {
     cups[i].cupIndex = i;
   }
 
-  // Randomly place ball under a cup
-  ballPosition = Math.floor(Math.random() * CUP_COUNT);
+  // Only randomize ball position on first game
+  // Otherwise, keep it where it was last revealed
+  if (gamesPlayed === 0) {
+    ballPosition = Math.floor(Math.random() * CUP_COUNT);
+  }
+  // Update ball x position to match the cup at ballPosition
+  // (cups may have been reset to original positions)
   ball.x = cups[ballPosition].x;
   ball.tint = 0xffffff;
 
