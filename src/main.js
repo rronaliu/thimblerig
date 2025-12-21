@@ -190,6 +190,25 @@ function createCup(index, texture) {
 
   cupContainer.addChild(cup);
 
+  // Create green glow effect for hover (initially hidden)
+  // Positioned at the bottom rim of the cup to look like light from inside/under
+  const glow = new Graphics();
+  // Outer glow - wide spread on the ground
+  glow.ellipse(0, CUP_HEIGHT - 10, CUP_WIDTH * 0.6, 20);
+  glow.fill({ color: 0x22ff22, alpha: 0.3 });
+  // Middle glow
+  glow.ellipse(0, CUP_HEIGHT - 12, CUP_WIDTH * 0.48, 16);
+  glow.fill({ color: 0x44ff44, alpha: 0.4 });
+  // Inner bright core at the rim edge
+  glow.ellipse(0, CUP_HEIGHT - 14, CUP_WIDTH * 0.35, 12);
+  glow.fill({ color: 0x66ff66, alpha: 0.55 });
+  // Brightest center
+  glow.ellipse(0, CUP_HEIGHT - 15, CUP_WIDTH * 0.22, 8);
+  glow.fill({ color: 0x99ff99, alpha: 0.7 });
+  glow.visible = false;
+  glow.label = "glow";
+  cupContainer.addChildAt(glow, 0); // Add behind the cup graphics
+
   // Store cup data
   cupContainer.cupIndex = index;
   cupContainer.isLifted = false;
@@ -448,7 +467,7 @@ async function selectCup(cupIndex) {
   // Lift selected cup
   await liftCup(cupIndex);
 
-  // Update ball position visually
+  // Show ball and update position
   ball.x = cups[ballPosition].x;
   ball.visible = true;
 
@@ -502,22 +521,22 @@ async function startGame() {
   // Randomly place ball under a cup
   ballPosition = Math.floor(Math.random() * CUP_COUNT);
   ball.x = cups[ballPosition].x;
-  ball.visible = true;
   ball.tint = 0xffffff;
 
   updateInstructions("Watch carefully where the ball is...");
 
-  // Show the ball briefly
+  // Lift cup to show the ball
+  await liftCup(ballPosition, true);
   await new Promise(r => setTimeout(r, 1500));
 
   // Lower cup over the ball
   updateInstructions("Now watch the cups shuffle...");
-  await liftCup(ballPosition, true);
-  await new Promise(r => setTimeout(r, 300));
-  ball.visible = false;
   await lowerCup(ballPosition, true);
 
   await new Promise(r => setTimeout(r, 500));
+
+  // Hide ball right before shuffle starts
+  ball.visible = false;
 
   // Shuffle
   await shuffleCups();
@@ -622,8 +641,12 @@ async function init() {
 
   // Create ball
   ball = createBall();
-  ball.y = CUP_Y + 5;
-  ball.visible = false;
+  ball.y = CUP_Y - 30; // Position higher so it's inside the cup, not at the base
+  ball.visible = true;
+
+  // Randomly place ball under a cup initially
+  ballPosition = Math.floor(Math.random() * CUP_COUNT);
+  ball.x = cups[ballPosition].x;
 
   gameContainer.addChild(ball);
   gameContainer.addChild(cupsContainer);
@@ -640,17 +663,23 @@ async function init() {
 
     cup.on("pointerdown", () => {
       const currentIndex = cups.indexOf(cup);
+      const glow = cup.getChildByLabel("glow");
+      if (glow) glow.visible = false;
       selectCup(currentIndex);
     });
 
     cup.on("pointerover", () => {
       if (canSelect && !isShuffling && !isRevealing) {
         cup.tint = 0xffddaa;
+        const glow = cup.getChildByLabel("glow");
+        if (glow) glow.visible = true;
       }
     });
 
     cup.on("pointerout", () => {
       cup.tint = 0xffffff;
+      const glow = cup.getChildByLabel("glow");
+      if (glow) glow.visible = false;
     });
   }
 
