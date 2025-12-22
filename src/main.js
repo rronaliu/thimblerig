@@ -5,7 +5,6 @@ import {
   Text,
   Rectangle,
   Assets,
-  TilingSprite,
   Sprite
 } from "pixi.js";
 
@@ -13,12 +12,12 @@ import {
 const GAME_WIDTH = 800;
 const GAME_HEIGHT = 600;
 const CUP_COUNT = 3;
-const CUP_WIDTH = 120;
-const CUP_HEIGHT = 160;
-const CUP_SPACING = 200;
-const CUP_Y = 600;
+const CUP_WIDTH = 90;
+const CUP_HEIGHT = 130;
+const CUP_SPACING = 160;
+const CUP_Y = 550;
 const BALL_RADIUS = 40;
-const SHUFFLE_SPEED = 180; // ms per swap (faster!)
+const SHUFFLE_SPEED = 170; // ms per swap (faster!)
 const SHUFFLE_COUNT = 10;
 
 // Game state
@@ -106,30 +105,6 @@ function createBall(texture) {
   ballGraphic.fill({ color: 0xffffff, alpha: 0.8 });
 
   return ballGraphic;
-}
-
-function addBackgroundTexture(texture, tableContainer) {
-  // Use TilingSprite to repeat the 128x128 image across the 800x600 area
-  const background = new TilingSprite({
-    texture: texture,
-    width: GAME_WIDTH,
-    height: GAME_HEIGHT
-  });
-
-  tableContainer.addChild(background);
-  return tableContainer;
-}
-
-function addTableTexture(texture, tableContainer) {
-  const background = new TilingSprite({
-    texture: texture,
-    width: GAME_WIDTH,
-    height: GAME_HEIGHT / 2,
-    y: GAME_HEIGHT / 2
-  });
-
-  tableContainer.addChild(background);
-  return tableContainer;
 }
 
 // Create a cup graphic
@@ -387,37 +362,41 @@ async function lowerCup(cupIndex, quick = false) {
 function createAfterimage(cup) {
   const ghost = new Graphics();
 
-  // Simplified cup shape for afterimage (matching rounded bottom)
+  // Use scaled dimensions to match the textured cups (1.8x scale)
+  const scaledWidth = CUP_WIDTH * 1.8;
+  const scaledHeight = CUP_HEIGHT * 1.8;
+
+  // Simplified cup shape for afterimage (matching scaled cup)
   const cupPath = [
-    -CUP_WIDTH * 0.35,
+    -scaledWidth * 0.35,
     0,
-    CUP_WIDTH * 0.35,
+    scaledWidth * 0.35,
     0,
-    CUP_WIDTH * 0.5,
-    CUP_HEIGHT - 15,
-    -CUP_WIDTH * 0.5,
-    CUP_HEIGHT - 15
+    scaledWidth * 0.5,
+    scaledHeight - 27,
+    -scaledWidth * 0.5,
+    scaledHeight - 27
   ];
   ghost.poly(cupPath);
-  ghost.fill({ color: 0x8b4513, alpha: 0.3 });
+  ghost.fill({ color: 0x8b4513, alpha: 0.4 });
   // Bottom rounded rim
-  ghost.ellipse(0, CUP_HEIGHT - 15, CUP_WIDTH * 0.5, 15);
-  ghost.fill({ color: 0x8b4513, alpha: 0.3 });
+  ghost.ellipse(0, scaledHeight - 27, scaledWidth * 0.5, 27);
+  ghost.fill({ color: 0x8b4513, alpha: 0.4 });
   // Top rim
-  ghost.ellipse(0, 0, CUP_WIDTH * 0.35, 12);
-  ghost.fill({ color: 0x654321, alpha: 0.3 });
+  ghost.ellipse(0, 0, scaledWidth * 0.35, 22);
+  ghost.fill({ color: 0x654321, alpha: 0.4 });
 
   ghost.x = cup.x;
   ghost.y = cup.y;
-  ghost.pivot.set(0, CUP_HEIGHT);
+  ghost.pivot.set(0, scaledHeight);
 
   cupsContainer.addChildAt(ghost, 0); // Add behind cups
   afterimages.push(ghost);
 
   // Fade out and remove
-  let alpha = 0.4;
+  let alpha = 0.5;
   const fade = delta => {
-    alpha -= delta.deltaTime * 0.08;
+    alpha -= delta.deltaTime * 0.06;
     ghost.alpha = alpha;
     if (alpha <= 0) {
       app.ticker.remove(fade);
@@ -442,10 +421,10 @@ async function swapCups(index1, index2) {
   const midY = CUP_Y - 60;
 
   // Create afterimages during animation
-  let trailInterval = setInterval(() => {
-    createAfterimage(cup1);
-    createAfterimage(cup2);
-  }, 40);
+  // let trailInterval = setInterval(() => {
+  //   createAfterimage(cup1);
+  //   createAfterimage(cup2);
+  // }, 25);
 
   // Animate both cups simultaneously
   await Promise.all([
@@ -459,7 +438,7 @@ async function swapCups(index1, index2) {
     })()
   ]);
 
-  clearInterval(trailInterval);
+  // clearInterval(trailInterval);
 
   // Swap in array
   cups[index1] = cup2;
@@ -619,13 +598,11 @@ function resize() {
 async function init() {
   // Create the PixiJS application
   app = new Application();
-  let wallTexture;
-  let woodTableTexture;
+  let backgroundTexture;
   let cupTexture;
   let ballTexture;
   try {
-    wallTexture = await Assets.load("assets/Bricks/Bricks_18-128x128.png");
-    woodTableTexture = await Assets.load("assets/Wood/Wood_10-128x128.png");
+    backgroundTexture = await Assets.load("assets/Background/background.png");
     cupTexture = await Assets.load("assets/Cup/wooden-cup.png");
     ballTexture = await Assets.load("assets/Ball/ball.png");
     console.log("Textures loaded successfully!");
@@ -655,13 +632,12 @@ async function init() {
   const tableContainer = new Container();
   app.stage.addChild(tableContainer);
 
-  // Correct order: (texture, container)
-  if (wallTexture) {
-    addBackgroundTexture(wallTexture, tableContainer);
-  }
-
-  if (woodTableTexture) {
-    addTableTexture(woodTableTexture, tableContainer);
+  // Add background texture
+  if (backgroundTexture) {
+    const bgSprite = new Sprite(backgroundTexture);
+    bgSprite.width = GAME_WIDTH;
+    bgSprite.height = GAME_HEIGHT;
+    tableContainer.addChild(bgSprite);
   }
 
   // Draw your green felt and borders on top of or instead of the texture
