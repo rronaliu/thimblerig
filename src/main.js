@@ -7,6 +7,7 @@ import {
   Assets,
   Sprite
 } from "pixi.js";
+import { createBettingPanel } from "./bettingPanel.js";
 
 // Game constants
 const GAME_WIDTH = 800;
@@ -36,6 +37,7 @@ let ui;
 let gameContainer;
 let cupsContainer;
 let afterimages = []; // For motion blur effect
+let bettingPanel;
 
 // Easing function
 function easeInOutQuad(t) {
@@ -132,20 +134,6 @@ function createCup(index, texture) {
     cupContainer.isLifted = false;
     cupContainer.originalY = CUP_Y;
 
-    // Add glow effect at the bottom (adjusted for larger cup)
-    const glow = new Graphics();
-    glow.ellipse(0, -5, scaledWidth * 0.5, 22);
-    glow.fill({ color: 0x22ff22, alpha: 0.3 });
-    glow.ellipse(0, -7, scaledWidth * 0.42, 18);
-    glow.fill({ color: 0x44ff44, alpha: 0.4 });
-    glow.ellipse(0, -9, scaledWidth * 0.32, 14);
-    glow.fill({ color: 0x66ff66, alpha: 0.55 });
-    glow.ellipse(0, -11, scaledWidth * 0.22, 10);
-    glow.fill({ color: 0x99ff99, alpha: 0.7 });
-    glow.visible = false;
-    glow.label = "glow";
-    cupContainer.addChildAt(glow, 0);
-
     return cupContainer;
   }
 
@@ -213,25 +201,6 @@ function createCup(index, texture) {
   cup.fill({ color: 0x5c3317, alpha: 0.5 });
 
   cupContainer.addChild(cup);
-
-  // Create green glow effect for hover (initially hidden)
-  // Positioned at the bottom rim of the cup to look like light from inside/under
-  const glow = new Graphics();
-  // Outer glow - wide spread on the ground
-  glow.ellipse(0, CUP_HEIGHT - 10, CUP_WIDTH * 0.6, 20);
-  glow.fill({ color: 0x22ff22, alpha: 0.3 });
-  // Middle glow
-  glow.ellipse(0, CUP_HEIGHT - 12, CUP_WIDTH * 0.48, 16);
-  glow.fill({ color: 0x44ff44, alpha: 0.4 });
-  // Inner bright core at the rim edge
-  glow.ellipse(0, CUP_HEIGHT - 14, CUP_WIDTH * 0.35, 12);
-  glow.fill({ color: 0x66ff66, alpha: 0.55 });
-  // Brightest center
-  glow.ellipse(0, CUP_HEIGHT - 15, CUP_WIDTH * 0.22, 8);
-  glow.fill({ color: 0x99ff99, alpha: 0.7 });
-  glow.visible = false;
-  glow.label = "glow";
-  cupContainer.addChildAt(glow, 0); // Add behind the cup graphics
 
   // Store cup data
   cupContainer.cupIndex = index;
@@ -337,6 +306,7 @@ function createUI() {
   // Play button
   const playButton = createButton("Start Game", GAME_WIDTH / 2, 480);
   playButton.label = "playButton";
+  playButton.y = 450;
   uiContainer.addChild(playButton);
 
   return uiContainer;
@@ -594,13 +564,19 @@ function resize() {
   app.canvas.style.height = `${newHeight}px`;
 }
 
-// Main initialization
-async function init() {
-  // Create the PixiJS application
-  app = new Application();
+/* ========================================
+ * INITIALIZATION FUNCTIONS
+ * ======================================== */
+
+/**
+ * Load all game textures
+ * @returns {Object} Object containing loaded textures
+ */
+async function loadTextures() {
   let backgroundTexture;
   let cupTexture;
   let ballTexture;
+
   try {
     backgroundTexture = await Assets.load("assets/Background/background.png");
     cupTexture = await Assets.load("assets/Cup/wooden-cup.png");
@@ -609,6 +585,158 @@ async function init() {
   } catch (error) {
     console.error("Texture failed to load, falling back to graphics:", error);
   }
+
+  return { backgroundTexture, cupTexture, ballTexture };
+}
+
+/**
+ * Create the table background with texture and borders
+ * @param {Texture} backgroundTexture - Optional background texture
+ * @returns {Container} Table container with background
+ */
+function createTableBackground(backgroundTexture) {
+  const tableContainer = new Container();
+
+  // Add background texture if available
+  if (backgroundTexture) {
+    const bgSprite = new Sprite(backgroundTexture);
+    bgSprite.width = GAME_WIDTH;
+    bgSprite.height = GAME_HEIGHT;
+    tableContainer.addChild(bgSprite);
+  }
+
+  // Add table border
+  const tableGraphics = new Graphics();
+  tableGraphics.rect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+  tableGraphics.stroke({ color: 0x7a7a7a, width: 8 });
+  tableContainer.addChild(tableGraphics);
+
+  return tableContainer;
+}
+
+/**
+ * Initialize all cups with positioning and event handlers
+ * @param {Texture} cupTexture - Optional cup texture
+ * @returns {Container} Container with all cups
+ */
+function initializeCups(cupTexture) {
+  const container = new Container();
+
+  for (let i = 0; i < CUP_COUNT; i++) {
+    const cup = createCup(i, cupTexture);
+    const startX =
+      GAME_WIDTH / 2 - ((CUP_COUNT - 1) * CUP_SPACING) / 2 + i * CUP_SPACING;
+    cup.x = startX;
+    cup.y = CUP_Y;
+    cup.pivot.set(0, CUP_HEIGHT);
+    cups.push(cup);
+    container.addChild(cup);
+  }
+
+  return container;
+}
+
+/**
+ * Initialize the ball with random starting position
+ * @param {Texture} ballTexture - Optional ball texture
+ * @returns {Sprite|Graphics} Ball sprite or graphics object
+ */
+function initializeBall(ballTexture) {
+  const ballSprite = createBall(ballTexture);
+  ballSprite.y = CUP_Y - 220;
+  ballSprite.visible = true;
+
+  // Randomly place ball under a cup initially
+  ballPosition = Math.floor(Math.random() * CUP_COUNT);
+  ballSprite.x = cups[ballPosition].x;
+
+  return ballSprite;
+}
+
+/**
+ * Set up all cup event handlers (click, hover, etc.)
+ */
+function setupCupEventHandlers() {
+  for (const cup of cups) {
+    cup.eventMode = "static";
+    cup.cursor = "pointer";
+
+    // Adjust hitArea for the larger textured cups (1.8x scale)
+    const hitWidth = CUP_WIDTH * 1.8;
+    const hitHeight = CUP_HEIGHT * 1.8;
+    cup.hitArea = new Rectangle(-hitWidth / 2, -hitHeight, hitWidth, hitHeight);
+
+    // Click handler
+    cup.on("pointerdown", () => {
+      const currentIndex = cups.indexOf(cup);
+      selectCup(currentIndex);
+    });
+
+    // Hover handler
+    cup.on("pointerover", () => {
+      if (canSelect && !isShuffling && !isRevealing) {
+        // No hover effect for now
+      }
+    });
+
+    // Hover out handler
+    cup.on("pointerout", () => {
+      // No hover effect for now
+    });
+  }
+}
+
+/**
+ * Create and configure the betting panel
+ * @returns {Container} Configured betting panel
+ */
+function setupBettingPanel() {
+  const panel = createBettingPanel(
+    app,
+    {
+      onPlaceBet: betData => {
+        console.log("Placing bet:", betData);
+        // TODO: Integrate with your socket/backend here
+        // Example: socketPlaceBet(betData);
+
+        // For now, simulate bet confirmation after 1 second
+        setTimeout(() => {
+          panel.confirmBet(betData);
+          // Update balance (simulate deduction)
+          const newBalance = panel.state.balance - betData.bet;
+          panel.updateBalance(newBalance);
+        }, 1000);
+      },
+      onRefreshBalance: () => {
+        console.log("Refreshing balance");
+        // TODO: Integrate with your backend to fetch balance
+        // Example: getBalance();
+
+        // For now, simulate balance refresh
+        panel.updateBalance(1000, panel.state.currency);
+      }
+    },
+    GAME_WIDTH
+  );
+
+  // Position betting panel at the bottom (full width)
+  panel.x = 0;
+  panel.y = GAME_HEIGHT - 120;
+
+  return panel;
+}
+
+/**
+ * Main initialization function
+ */
+async function init() {
+  // Create the PixiJS application
+  app = new Application();
+
+  // Load all textures
+  const { backgroundTexture, cupTexture, ballTexture } = await loadTextures();
+
+  // Initialize the app
   await app.init({
     width: GAME_WIDTH,
     height: GAME_HEIGHT,
@@ -628,57 +756,21 @@ async function init() {
   window.addEventListener("resize", resize);
   resize();
 
-  // Create a container specifically for the background
-  const tableContainer = new Container();
+  // Create table background
+  const tableContainer = createTableBackground(backgroundTexture);
   app.stage.addChild(tableContainer);
 
-  // Add background texture
-  if (backgroundTexture) {
-    const bgSprite = new Sprite(backgroundTexture);
-    bgSprite.width = GAME_WIDTH;
-    bgSprite.height = GAME_HEIGHT;
-    tableContainer.addChild(bgSprite);
-  }
-
-  // Draw your green felt and borders on top of or instead of the texture
-  const tableGraphics = new Graphics();
-  tableGraphics.rect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-  // If you want to see the bricks, use a low alpha here or skip the fill
-  //   tableGraphics.fill({ color: 0x7a7a7a, alpha: 0.5 });
-
-  // Add subtle table border
-  tableGraphics.rect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-  tableGraphics.stroke({ color: 0x7a7a7a, width: 8 });
-
-  tableContainer.addChild(tableGraphics);
-
-  // Create containers for game elements
+  // Create game container
   gameContainer = new Container();
   app.stage.addChild(gameContainer);
 
   // Initialize cups
-  cupsContainer = new Container();
+  cupsContainer = initializeCups(cupTexture);
 
-  for (let i = 0; i < CUP_COUNT; i++) {
-    const cup = createCup(i, cupTexture);
-    const startX =
-      GAME_WIDTH / 2 - ((CUP_COUNT - 1) * CUP_SPACING) / 2 + i * CUP_SPACING;
-    cup.x = startX;
-    cup.y = CUP_Y;
-    cup.pivot.set(0, CUP_HEIGHT);
-    cups.push(cup);
-    cupsContainer.addChild(cup);
-  }
+  // Initialize ball
+  ball = initializeBall(ballTexture);
 
-  // Create ball
-  ball = createBall(ballTexture);
-  ball.y = CUP_Y - 220; // Position higher so it's inside the cup (adjusted for CUP_Y = 600)
-  ball.visible = true;
-
-  // Randomly place ball under a cup initially
-  ballPosition = Math.floor(Math.random() * CUP_COUNT);
-  ball.x = cups[ballPosition].x;
-
+  // Add ball and cups to game container
   gameContainer.addChild(ball);
   gameContainer.addChild(cupsContainer);
 
@@ -686,40 +778,16 @@ async function init() {
   ui = createUI();
   app.stage.addChild(ui);
 
-  // Set up cup click handlers
-  for (const cup of cups) {
-    cup.eventMode = "static";
-    cup.cursor = "pointer";
-    // Adjust hitArea for the larger textured cups (1.8x scale)
-    const hitWidth = CUP_WIDTH * 1.8;
-    const hitHeight = CUP_HEIGHT * 1.8;
-    cup.hitArea = new Rectangle(-hitWidth / 2, -hitHeight, hitWidth, hitHeight);
-
-    cup.on("pointerdown", () => {
-      const currentIndex = cups.indexOf(cup);
-      const glow = cup.getChildByLabel("glow");
-      if (glow) glow.visible = false;
-      selectCup(currentIndex);
-    });
-
-    cup.on("pointerover", () => {
-      if (canSelect && !isShuffling && !isRevealing) {
-        cup.tint = 0xffddaa;
-        const glow = cup.getChildByLabel("glow");
-        if (glow) glow.visible = true;
-      }
-    });
-
-    cup.on("pointerout", () => {
-      cup.tint = 0xffffff;
-      const glow = cup.getChildByLabel("glow");
-      if (glow) glow.visible = false;
-    });
-  }
+  // Set up event handlers
+  setupCupEventHandlers();
 
   // Set up play button handler
   const playButton = ui.getChildByLabel("playButton");
   playButton.on("pointerdown", startGame);
+
+  // Create and add betting panel
+  bettingPanel = setupBettingPanel();
+  app.stage.addChild(bettingPanel);
 }
 
 // Start the game
