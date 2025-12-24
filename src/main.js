@@ -569,6 +569,31 @@ function resize() {
  * ======================================== */
 
 /**
+ * Hide the loading screen with fade-out animation
+ */
+function hideLoadingScreen() {
+  const loadingScreen = document.getElementById("loading-screen");
+  if (loadingScreen) {
+    loadingScreen.classList.add("fade-out");
+    // Remove from DOM after animation completes
+    setTimeout(() => {
+      loadingScreen.remove();
+    }, 500);
+  }
+}
+
+/**
+ * Update loading screen text
+ * @param {string} text - Text to display
+ */
+function updateLoadingText(text) {
+  const loadingText = document.querySelector(".loader-text");
+  if (loadingText) {
+    loadingText.textContent = text;
+  }
+}
+
+/**
  * Load all game textures
  * @returns {Object} Object containing loaded textures
  */
@@ -578,6 +603,7 @@ async function loadTextures() {
   let ballTexture;
 
   try {
+    updateLoadingText("Loading textures...");
     backgroundTexture = await Assets.load("assets/Background/background.png");
     cupTexture = await Assets.load("assets/Cup/wooden-cup.png");
     ballTexture = await Assets.load("assets/Ball/ball.png");
@@ -737,6 +763,7 @@ async function init() {
   const { backgroundTexture, cupTexture, ballTexture } = await loadTextures();
 
   // Initialize the app
+  updateLoadingText("Initializing game...");
   await app.init({
     width: GAME_WIDTH,
     height: GAME_HEIGHT,
@@ -757,6 +784,7 @@ async function init() {
   resize();
 
   // Create table background
+  updateLoadingText("Setting up table...");
   const tableContainer = createTableBackground(backgroundTexture);
   app.stage.addChild(tableContainer);
 
@@ -765,6 +793,7 @@ async function init() {
   app.stage.addChild(gameContainer);
 
   // Initialize cups
+  updateLoadingText("Placing cups...");
   cupsContainer = initializeCups(cupTexture);
 
   // Initialize ball
@@ -775,6 +804,7 @@ async function init() {
   gameContainer.addChild(cupsContainer);
 
   // Create UI
+  updateLoadingText("Creating UI...");
   ui = createUI();
   app.stage.addChild(ui);
 
@@ -786,8 +816,14 @@ async function init() {
   playButton.on("pointerdown", startGame);
 
   // Create and add betting panel
+  updateLoadingText("Setting up betting panel...");
   bettingPanel = setupBettingPanel();
   app.stage.addChild(bettingPanel);
+
+  // Game is ready - hide loading screen
+  updateLoadingText("Ready!");
+  await new Promise(resolve => setTimeout(resolve, 300)); // Brief pause to show "Ready!"
+  hideLoadingScreen();
 }
 
 // Start the game
